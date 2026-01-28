@@ -2,25 +2,16 @@
  * Firebase Google Authentication
  * Only allows access for specific email address
  *
- * SETUP (one-time, ~5 minutes):
- * 1. Go to https://console.firebase.google.com/
- * 2. Create a new project (or use existing)
- * 3. Go to Authentication → Sign-in method → Enable Google
- * 4. Go to Project Settings → General → Your apps → Add web app
- * 5. Copy the firebaseConfig values below
- * 6. Go to Authentication → Settings → Authorized domains
- *    Add: syedrazaali.github.io
+ * ENVIRONMENT VARIABLES (set in Netlify Dashboard):
+ * - FIREBASE_API_KEY
+ * - FIREBASE_AUTH_DOMAIN
+ * - FIREBASE_PROJECT_ID
+ * - FIREBASE_STORAGE_BUCKET
+ * - FIREBASE_MESSAGING_SENDER_ID
+ * - FIREBASE_APP_ID
  */
 
-// Firebase Configuration
-const firebaseConfig = {
-    apiKey: "REMOVED_API_KEY",
-    authDomain: "iwt-dashboard.firebaseapp.com",
-    projectId: "iwt-dashboard",
-    storageBucket: "iwt-dashboard.firebasestorage.app",
-    messagingSenderId: "REMOVED_SENDER_ID",
-    appId: "1:REMOVED_SENDER_ID:web:0323300f00056f54ecc0db"
-};
+// firebaseConfig is loaded from firebase-config.js (generated at build time)
 
 // Only these emails can access the dashboard
 const ALLOWED_EMAILS = [
