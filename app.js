@@ -1,8 +1,6 @@
 /**
  * IWT Rich Life Dashboard - Application Logic
- *
- * This file handles all chart rendering, calculations, and UI updates.
- * Data is sourced from finance-data.js - update that file monthly.
+ * Personal Nerd Wallet with Ramit Sethi's Conscious Spending Plan
  */
 
 // ============================================
@@ -18,13 +16,34 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-function formatPercent(value) {
-    return `${Math.round(value)}%`;
+function formatPercent(value, decimals = 0) {
+    return `${value.toFixed(decimals)}%`;
 }
 
 function calculatePercentage(part, whole) {
     if (whole === 0) return 0;
     return (part / whole) * 100;
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatShortDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+}
+
+function getLatestSnapshot() {
+    const snapshots = FINANCE_DATA.snapshots;
+    return snapshots[snapshots.length - 1];
+}
+
+function getPreviousSnapshot() {
+    const snapshots = FINANCE_DATA.snapshots;
+    if (snapshots.length < 2) return null;
+    return snapshots[snapshots.length - 2];
 }
 
 function getMonthsUntilGoal(remaining, monthlyContribution) {
@@ -38,8 +57,26 @@ function addMonths(date, months) {
     return result;
 }
 
-function formatDate(date) {
-    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+// ============================================
+// TREND CALCULATIONS
+// ============================================
+
+function calculateTrend(current, previous) {
+    if (!previous || previous === 0) return { change: 0, percent: 0, direction: 'neutral' };
+    const change = current - previous;
+    const percent = (change / previous) * 100;
+    const direction = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
+    return { change, percent, direction };
+}
+
+function getTrendHTML(trend, invertColors = false) {
+    const isPositive = invertColors ? trend.direction === 'down' : trend.direction === 'up';
+    const colorClass = trend.direction === 'neutral' ? 'text-gray-400' :
+                       isPositive ? 'text-green-500' : 'text-red-500';
+    const arrow = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→';
+    const sign = trend.change >= 0 ? '+' : '';
+
+    return `<span class="${colorClass} text-sm font-medium">${arrow} ${sign}${formatCurrency(trend.change)} (${sign}${trend.percent.toFixed(1)}%)</span>`;
 }
 
 // ============================================
@@ -74,8 +111,6 @@ function toggleDarkMode() {
         lightIcon.classList.remove('hidden');
         localStorage.setItem('darkMode', 'true');
     }
-
-    // Recreate CSP chart with new colors
     renderCSPChart();
 }
 
@@ -84,34 +119,51 @@ function toggleDarkMode() {
 // ============================================
 
 function getCSPHealth() {
-    const { csp, income } = FINANCE_DATA;
-    const netIncome = income.net;
+    const latest = getLatestSnapshot();
+    const netIncome = FINANCE_DATA.income.net;
+    const targets = FINANCE_DATA.targets;
 
-    const fixedPct = calculatePercentage(csp.fixedCosts.total, netIncome);
-    const investPct = calculatePercentage(csp.investments.total, netIncome);
-    const savingsPct = calculatePercentage(csp.savingsGoals.total, netIncome);
+    const fixedPct = calculatePercentage(latest.csp.fixedCosts, netIncome);
+    const investPct = calculatePercentage(latest.csp.investments, netIncome);
+    const savingsPct = calculatePercentage(latest.csp.savingsGoals, netIncome);
+    const guiltFreePct = calculatePercentage(latest.csp.guiltFreeSpending, netIncome);
 
     const issues = [];
+    let score = 0;
 
-    // Check Fixed Costs (should be 50-60%)
-    if (fixedPct > 60) {
-        issues.push(`Fixed costs at ${formatPercent(fixedPct)} (target: 50-60%)`);
+    // Check Fixed Costs
+    if (fixedPct <= targets.fixedCosts.max) {
+        score += 25;
+    } else {
+        issues.push(`Fixed costs at ${formatPercent(fixedPct)} (target: ≤${targets.fixedCosts.max}%)`);
     }
 
-    // Check Investments (should be at least 10%)
-    if (investPct < 10) {
-        issues.push(`Investments at ${formatPercent(investPct)} (target: 10%+)`);
+    // Check Investments
+    if (investPct >= targets.investments.min) {
+        score += 25;
+    } else {
+        issues.push(`Investments at ${formatPercent(investPct)} (target: ≥${targets.investments.min}%)`);
     }
 
-    // Check Savings (should be 5-10%)
-    if (savingsPct < 5) {
-        issues.push(`Savings at ${formatPercent(savingsPct)} (target: 5-10%)`);
+    // Check Savings
+    if (savingsPct >= targets.savingsGoals.min) {
+        score += 25;
+    } else {
+        issues.push(`Savings at ${formatPercent(savingsPct)} (target: ≥${targets.savingsGoals.min}%)`);
+    }
+
+    // Check Guilt-Free is within range
+    if (guiltFreePct >= targets.guiltFreeSpending.min && guiltFreePct <= targets.guiltFreeSpending.max) {
+        score += 25;
+    } else if (guiltFreePct > targets.guiltFreeSpending.max) {
+        issues.push(`Guilt-free at ${formatPercent(guiltFreePct)} (target: ≤${targets.guiltFreeSpending.max}%)`);
     }
 
     return {
-        isHealthy: issues.length === 0,
-        issues: issues,
-        fixedCostsWarning: fixedPct > 60
+        score,
+        isHealthy: score >= 75,
+        issues,
+        percentages: { fixedPct, investPct, savingsPct, guiltFreePct }
     };
 }
 
@@ -119,20 +171,20 @@ function updateHealthIndicator() {
     const health = getCSPHealth();
     const indicator = document.getElementById('healthIndicator');
 
-    if (health.isHealthy) {
-        indicator.innerHTML = `
-            <span class="w-2 h-2 rounded-full bg-green-500"></span>
-            <span class="text-green-500">Healthy</span>
-        `;
+    if (health.score === 100) {
+        indicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-500">Perfect</span>`;
         indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-green-500/10';
+    } else if (health.score >= 75) {
+        indicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-green-500">Healthy</span>`;
+        indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-green-500/10';
+    } else if (health.score >= 50) {
+        indicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-yellow-500"></span><span class="text-yellow-500">Needs Work</span>`;
+        indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-yellow-500/10';
     } else {
-        indicator.innerHTML = `
-            <span class="w-2 h-2 rounded-full bg-red-500 health-pulse"></span>
-            <span class="text-red-500">Needs Attention</span>
-        `;
+        indicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 health-pulse"></span><span class="text-red-500">Attention</span>`;
         indicator.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-red-500/10';
-        indicator.title = health.issues.join('\n');
     }
+    indicator.title = health.issues.length > 0 ? health.issues.join('\n') : 'All targets met!';
 }
 
 // ============================================
@@ -141,16 +193,15 @@ function updateHealthIndicator() {
 
 function renderCSPChart() {
     const ctx = document.getElementById('cspChart').getContext('2d');
-    const { csp } = FINANCE_DATA;
+    const latest = getLatestSnapshot();
+    const isDark = document.documentElement.classList.contains('dark');
 
     const data = [
-        csp.fixedCosts.total,
-        csp.investments.total,
-        csp.savingsGoals.total,
-        csp.guiltFreeSpending.total
+        latest.csp.fixedCosts,
+        latest.csp.investments,
+        latest.csp.savingsGoals,
+        latest.csp.guiltFreeSpending
     ];
-
-    const isDark = document.documentElement.classList.contains('dark');
 
     if (cspChart) {
         cspChart.destroy();
@@ -159,15 +210,10 @@ function renderCSPChart() {
     cspChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: ['Fixed Costs', 'Investments', 'Savings Goals', 'Guilt-Free Spending'],
+            labels: ['Fixed Costs', 'Investments', 'Savings Goals', 'Guilt-Free'],
             datasets: [{
                 data: data,
-                backgroundColor: [
-                    '#ef4444', // Fixed - Red
-                    '#22c55e', // Invest - Green
-                    '#3b82f6', // Savings - Blue
-                    '#a855f7'  // Guilt-Free - Purple
-                ],
+                backgroundColor: ['#ef4444', '#22c55e', '#3b82f6', '#a855f7'],
                 borderColor: isDark ? '#1f2937' : '#ffffff',
                 borderWidth: 3,
                 hoverOffset: 8
@@ -177,10 +223,12 @@ function renderCSPChart() {
             responsive: true,
             maintainAspectRatio: true,
             cutout: '65%',
+            animation: {
+                animateRotate: true,
+                duration: 800
+            },
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     backgroundColor: isDark ? '#374151' : '#ffffff',
                     titleColor: isDark ? '#ffffff' : '#1f2937',
@@ -188,7 +236,6 @@ function renderCSPChart() {
                     borderColor: isDark ? '#4b5563' : '#e5e7eb',
                     borderWidth: 1,
                     padding: 12,
-                    displayColors: true,
                     callbacks: {
                         label: function(context) {
                             const value = context.raw;
@@ -204,26 +251,31 @@ function renderCSPChart() {
 }
 
 function updateCSPBreakdown() {
-    const { csp, income } = FINANCE_DATA;
-    const netIncome = income.net;
+    const latest = getLatestSnapshot();
+    const previous = getPreviousSnapshot();
+    const netIncome = FINANCE_DATA.income.net;
 
     document.getElementById('monthlyIncome').textContent = formatCurrency(netIncome);
 
     // Fixed Costs
-    document.getElementById('cspFixed').textContent = formatCurrency(csp.fixedCosts.total);
-    document.getElementById('cspFixedPct').textContent = `(${formatPercent(calculatePercentage(csp.fixedCosts.total, netIncome))})`;
+    const fixedPct = calculatePercentage(latest.csp.fixedCosts, netIncome);
+    document.getElementById('cspFixed').textContent = formatCurrency(latest.csp.fixedCosts);
+    document.getElementById('cspFixedPct').textContent = `(${formatPercent(fixedPct)})`;
 
     // Investments
-    document.getElementById('cspInvest').textContent = formatCurrency(csp.investments.total);
-    document.getElementById('cspInvestPct').textContent = `(${formatPercent(calculatePercentage(csp.investments.total, netIncome))})`;
+    const investPct = calculatePercentage(latest.csp.investments, netIncome);
+    document.getElementById('cspInvest').textContent = formatCurrency(latest.csp.investments);
+    document.getElementById('cspInvestPct').textContent = `(${formatPercent(investPct)})`;
 
     // Savings
-    document.getElementById('cspSavings').textContent = formatCurrency(csp.savingsGoals.total);
-    document.getElementById('cspSavingsPct').textContent = `(${formatPercent(calculatePercentage(csp.savingsGoals.total, netIncome))})`;
+    const savingsPct = calculatePercentage(latest.csp.savingsGoals, netIncome);
+    document.getElementById('cspSavings').textContent = formatCurrency(latest.csp.savingsGoals);
+    document.getElementById('cspSavingsPct').textContent = `(${formatPercent(savingsPct)})`;
 
     // Guilt-Free
-    document.getElementById('cspGuiltFree').textContent = formatCurrency(csp.guiltFreeSpending.total);
-    document.getElementById('cspGuiltFreePct').textContent = `(${formatPercent(calculatePercentage(csp.guiltFreeSpending.total, netIncome))})`;
+    const guiltFreePct = calculatePercentage(latest.csp.guiltFreeSpending, netIncome);
+    document.getElementById('cspGuiltFree').textContent = formatCurrency(latest.csp.guiltFreeSpending);
+    document.getElementById('cspGuiltFreePct').textContent = `(${formatPercent(guiltFreePct)})`;
 }
 
 // ============================================
@@ -232,17 +284,15 @@ function updateCSPBreakdown() {
 
 function renderNetWorthChart() {
     const ctx = document.getElementById('netWorthChart').getContext('2d');
-    const { netWorth } = FINANCE_DATA;
-
-    let historyData = [...netWorth.history];
+    let snapshots = [...FINANCE_DATA.snapshots];
 
     // Apply range filter
-    if (currentChartRange > 0 && historyData.length > currentChartRange) {
-        historyData = historyData.slice(-currentChartRange);
+    if (currentChartRange > 0 && snapshots.length > currentChartRange) {
+        snapshots = snapshots.slice(-currentChartRange);
     }
 
-    const labels = historyData.map(item => item.month);
-    const totals = historyData.map(item => item.total);
+    const labels = snapshots.map(s => formatShortDate(s.date));
+    const totals = snapshots.map(s => s.netWorth.total);
 
     if (netWorthChart) {
         netWorthChart.destroy();
@@ -260,16 +310,34 @@ function renderNetWorthChart() {
                 borderWidth: 2,
                 fill: true,
                 tension: 0.3,
-                pointRadius: 3,
-                pointBackgroundColor: '#7c3aed'
+                pointRadius: 4,
+                pointBackgroundColor: '#7c3aed',
+                pointHoverRadius: 6
             }]
         },
         options: {
             responsive: false,
-            animation: false,
+            animation: {
+                duration: 800,
+                easing: 'easeOutQuart'
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
             plugins: {
                 legend: { display: false },
-                tooltip: { enabled: true }
+                tooltip: {
+                    backgroundColor: '#374151',
+                    titleColor: '#ffffff',
+                    bodyColor: '#d1d5db',
+                    padding: 12,
+                    callbacks: {
+                        label: function(context) {
+                            return formatCurrency(context.raw);
+                        }
+                    }
+                }
             },
             scales: {
                 x: {
@@ -293,7 +361,6 @@ function renderNetWorthChart() {
 function setChartRange(months) {
     currentChartRange = months;
 
-    // Update button styles
     document.querySelectorAll('.chart-range-btn').forEach(btn => {
         const btnRange = parseInt(btn.dataset.range);
         if (btnRange === months) {
@@ -309,35 +376,65 @@ function setChartRange(months) {
 }
 
 function updateNetWorthDisplay() {
-    const { netWorth } = FINANCE_DATA;
-    const current = netWorth.current;
-    const history = netWorth.history;
+    const latest = getLatestSnapshot();
+    const previous = getPreviousSnapshot();
+    const nw = latest.netWorth;
 
     // Update totals
-    document.getElementById('netWorthTotal').textContent = formatCurrency(current.total);
-    document.getElementById('nwAssets').textContent = formatCurrency(current.assets);
-    document.getElementById('nwInvestments').textContent = formatCurrency(current.investments);
-    document.getElementById('nwSavings').textContent = formatCurrency(current.savings);
-    document.getElementById('nwDebt').textContent = formatCurrency(current.debt);
+    document.getElementById('netWorthTotal').textContent = formatCurrency(nw.total);
+    document.getElementById('nwAssets').textContent = formatCurrency(nw.assets);
+    document.getElementById('nwInvestments').textContent = formatCurrency(nw.investments);
+    document.getElementById('nwSavings').textContent = formatCurrency(nw.savings);
+    document.getElementById('nwDebt').textContent = formatCurrency(nw.debt);
 
-    // Calculate Month-over-Month change
-    if (history.length >= 2) {
-        const currentTotal = history[history.length - 1].total;
-        const previousTotal = history[history.length - 2].total;
-        const change = currentTotal - previousTotal;
-        const changePercent = ((change / previousTotal) * 100).toFixed(1);
-
-        const changeContainer = document.getElementById('netWorthChange');
-        const isPositive = change >= 0;
-
+    // Calculate and display trend
+    const changeContainer = document.getElementById('netWorthChange');
+    if (previous) {
+        const trend = calculateTrend(nw.total, previous.netWorth.total);
         changeContainer.innerHTML = `
-            <span class="flex items-center gap-1 ${isPositive ? 'text-green-500' : 'text-red-500'}">
-                <svg class="w-4 h-4 ${isPositive ? '' : 'rotate-180'}" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"/>
-                </svg>
-                ${isPositive ? '+' : ''}${formatCurrency(change)} (${isPositive ? '+' : ''}${changePercent}%)
-            </span>
-            <span class="text-gray-500 text-sm">vs last month</span>
+            ${getTrendHTML(trend)}
+            <span class="text-gray-500 text-sm ml-2">since ${formatShortDate(previous.date)}</span>
+        `;
+    } else {
+        changeContainer.innerHTML = '<span class="text-gray-500 text-sm">First snapshot</span>';
+    }
+}
+
+// ============================================
+// STATS CARDS
+// ============================================
+
+function updateStatsCards() {
+    const snapshots = FINANCE_DATA.snapshots;
+    const latest = getLatestSnapshot();
+    const first = snapshots[0];
+
+    // Calculate all-time growth
+    const allTimeGrowth = calculateTrend(latest.netWorth.total, first.netWorth.total);
+
+    // Calculate average monthly growth
+    const monthsTracked = snapshots.length;
+    const avgMonthlyGrowth = allTimeGrowth.change / Math.max(monthsTracked - 1, 1);
+
+    // Update stats section if it exists
+    const statsContainer = document.getElementById('statsContainer');
+    if (statsContainer) {
+        statsContainer.innerHTML = `
+            <div class="bg-gray-800/50 rounded-xl p-4">
+                <p class="text-gray-500 text-xs uppercase">All-Time Growth</p>
+                <p class="text-xl font-bold text-white">${formatCurrency(allTimeGrowth.change)}</p>
+                <p class="text-green-500 text-sm">+${allTimeGrowth.percent.toFixed(1)}%</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-xl p-4">
+                <p class="text-gray-500 text-xs uppercase">Avg Monthly</p>
+                <p class="text-xl font-bold text-white">${formatCurrency(avgMonthlyGrowth)}</p>
+                <p class="text-gray-400 text-sm">${monthsTracked} snapshots</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-xl p-4">
+                <p class="text-gray-500 text-xs uppercase">Debt Paid Off</p>
+                <p class="text-xl font-bold text-white">${formatCurrency(first.netWorth.debt - latest.netWorth.debt)}</p>
+                <p class="text-green-500 text-sm">${formatCurrency(latest.netWorth.debt)} remaining</p>
+            </div>
         `;
     }
 }
@@ -359,28 +456,19 @@ function renderGoals() {
         const estimatedDate = addMonths(new Date(), monthsToGoal);
 
         const iconMap = {
-            ring: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-            </svg>`,
-            vacation: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
-            </svg>`,
-            home: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-            </svg>`,
-            default: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>`
+            ring: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>`,
+            vacation: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/></svg>`,
+            home: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>`,
+            emergency: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`,
+            default: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
         };
 
         const icon = iconMap[goal.icon] || iconMap.default;
-
         const priorityColors = {
             high: 'from-rose-500 to-pink-500',
             medium: 'from-amber-500 to-orange-500',
             low: 'from-blue-500 to-cyan-500'
         };
-
         const gradientClass = priorityColors[goal.priority] || priorityColors.medium;
 
         const card = document.createElement('div');
@@ -388,29 +476,23 @@ function renderGoals() {
         card.innerHTML = `
             <div class="flex items-start justify-between mb-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${gradientClass} flex items-center justify-center text-white">
-                        ${icon}
-                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br ${gradientClass} flex items-center justify-center text-white">${icon}</div>
                     <div>
                         <h4 class="font-semibold text-white">${goal.name}</h4>
                         <p class="text-sm text-gray-500">${formatCurrency(goal.monthlyContribution)}/month</p>
                     </div>
                 </div>
-                <span class="text-xs font-medium px-2 py-1 rounded-full ${goal.priority === 'high' ? 'bg-rose-500/20 text-rose-400' : 'bg-gray-700 text-gray-400'}">
-                    ${goal.priority}
-                </span>
+                <span class="text-xs font-medium px-2 py-1 rounded-full ${goal.priority === 'high' ? 'bg-rose-500/20 text-rose-400' : 'bg-gray-700 text-gray-400'}">${goal.priority}</span>
             </div>
-
             <div class="mb-4">
                 <div class="flex justify-between text-sm mb-2">
                     <span class="text-gray-400">Progress</span>
-                    <span class="text-white font-medium">${formatPercent(progress)}</span>
+                    <span class="text-white font-medium">${formatPercent(progress, 1)}</span>
                 </div>
                 <div class="h-3 bg-gray-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r ${gradientClass} rounded-full transition-all duration-500" style="width: ${Math.min(progress, 100)}%"></div>
+                    <div class="h-full bg-gradient-to-r ${gradientClass} rounded-full transition-all duration-1000" style="width: ${Math.min(progress, 100)}%"></div>
                 </div>
             </div>
-
             <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
                     <p class="text-gray-500">Saved</p>
@@ -425,14 +507,12 @@ function renderGoals() {
                     <p class="text-white font-semibold">${formatCurrency(remaining)}</p>
                 </div>
                 <div>
-                    <p class="text-gray-500">Est. Completion</p>
-                    <p class="text-iwt-purple font-semibold">${monthsToGoal === Infinity ? 'N/A' : formatDate(estimatedDate)}</p>
+                    <p class="text-gray-500">Est. Complete</p>
+                    <p class="text-iwt-purple font-semibold">${monthsToGoal === Infinity ? 'N/A' : estimatedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
                 </div>
             </div>
-
             ${goal.notes ? `<p class="mt-4 text-xs text-gray-500 italic">"${goal.notes}"</p>` : ''}
         `;
-
         container.appendChild(card);
     });
 }
@@ -442,12 +522,12 @@ function renderGoals() {
 // ============================================
 
 function updateLastUpdated() {
-    const { lastUpdated, currentMonth } = FINANCE_DATA;
-    document.getElementById('lastUpdated').textContent = `Data: ${currentMonth}`;
+    const latest = getLatestSnapshot();
+    document.getElementById('lastUpdated').textContent = `Last update: ${formatDate(latest.date)}`;
 }
 
 function init() {
-    // Check for saved dark mode preference
+    // Check dark mode preference
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode === 'false') {
         toggleDarkMode();
@@ -458,6 +538,7 @@ function init() {
     updateNetWorthDisplay();
     updateCSPBreakdown();
     updateHealthIndicator();
+    updateStatsCards();
 
     // Render charts
     renderCSPChart();
@@ -465,7 +546,8 @@ function init() {
 
     // Render goals
     renderGoals();
+
+    console.log('Dashboard loaded with', FINANCE_DATA.snapshots.length, 'snapshots');
 }
 
-// Run when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
