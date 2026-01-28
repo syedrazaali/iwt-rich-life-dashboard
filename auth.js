@@ -12,18 +12,21 @@
  *    Add: syedrazaali.github.io
  */
 
-// PASTE YOUR FIREBASE CONFIG HERE (from Firebase Console)
+// Firebase Configuration
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "REMOVED_API_KEY",
+    authDomain: "iwt-dashboard.firebaseapp.com",
+    projectId: "iwt-dashboard",
+    storageBucket: "iwt-dashboard.firebasestorage.app",
+    messagingSenderId: "REMOVED_SENDER_ID",
+    appId: "1:REMOVED_SENDER_ID:web:0323300f00056f54ecc0db"
 };
 
-// Only this email can access the dashboard
-const ALLOWED_EMAIL = "srazaaliabidi@gmail.com";
+// Only these emails can access the dashboard
+const ALLOWED_EMAILS = [
+    "srazaaliabidi@gmail.com",
+    "farhussain16@gmail.com"
+];
 
 // Firebase instances
 let auth = null;
@@ -41,8 +44,7 @@ function initFirebase() {
         auth = firebase.auth();
         provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({
-            prompt: 'select_account',
-            login_hint: ALLOWED_EMAIL
+            prompt: 'select_account'
         });
         return true;
     } catch (error) {
@@ -60,8 +62,11 @@ function checkAuth() {
 
     auth.onAuthStateChanged((user) => {
         if (user) {
-            // User is signed in - verify email
-            if (user.email.toLowerCase() === ALLOWED_EMAIL.toLowerCase()) {
+            // User is signed in - verify email is in allowed list
+            const isAllowed = ALLOWED_EMAILS.some(
+                email => email.toLowerCase() === user.email.toLowerCase()
+            );
+            if (isAllowed) {
                 showDashboard(user);
             } else {
                 // Wrong email - sign them out
