@@ -45,6 +45,10 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.6; }
         }
+        #netWorthChart {
+            width: 100% !important;
+            height: 100% !important;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen">
@@ -190,7 +194,9 @@
                         <button onclick="setChartRange(0)" class="chart-range-btn px-3 py-1 text-sm rounded-lg bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors" data-range="0">All</button>
                     </div>
                 </div>
-                <canvas id="netWorthChart" style="height: 300px;"></canvas>
+                <div class="relative" style="height: 300px;">
+                    <canvas id="netWorthChart"></canvas>
+                </div>
             </div>
         </div>
 
