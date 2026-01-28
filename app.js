@@ -75,9 +75,8 @@ function toggleDarkMode() {
         localStorage.setItem('darkMode', 'true');
     }
 
-    // Recreate charts with new colors
+    // Recreate CSP chart with new colors
     renderCSPChart();
-    renderNetWorthChart();
 }
 
 // ============================================
@@ -245,16 +244,9 @@ function renderNetWorthChart() {
     const labels = historyData.map(item => item.month);
     const totals = historyData.map(item => item.total);
 
-    const isDark = document.documentElement.classList.contains('dark');
-
     if (netWorthChart) {
         netWorthChart.destroy();
     }
-
-    // Create gradient
-    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-    gradient.addColorStop(0, 'rgba(124, 58, 237, 0.3)');
-    gradient.addColorStop(1, 'rgba(124, 58, 237, 0.0)');
 
     netWorthChart = new Chart(ctx, {
         type: 'line',
@@ -264,61 +256,32 @@ function renderNetWorthChart() {
                 label: 'Net Worth',
                 data: totals,
                 borderColor: '#7c3aed',
-                backgroundColor: gradient,
-                borderWidth: 3,
+                backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                borderWidth: 2,
                 fill: true,
-                tension: 0.4,
-                pointRadius: 4,
-                pointBackgroundColor: '#7c3aed',
-                pointBorderColor: isDark ? '#1f2937' : '#ffffff',
-                pointBorderWidth: 2,
-                pointHoverRadius: 6
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#7c3aed'
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
+            responsive: false,
+            animation: false,
             plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    backgroundColor: isDark ? '#374151' : '#ffffff',
-                    titleColor: isDark ? '#ffffff' : '#1f2937',
-                    bodyColor: isDark ? '#d1d5db' : '#4b5563',
-                    borderColor: isDark ? '#4b5563' : '#e5e7eb',
-                    borderWidth: 1,
-                    padding: 12,
-                    callbacks: {
-                        label: function(context) {
-                            return formatCurrency(context.raw);
-                        }
-                    }
-                }
+                legend: { display: false },
+                tooltip: { enabled: true }
             },
             scales: {
                 x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        color: isDark ? '#9ca3af' : '#4b5563',
-                        maxRotation: 45,
-                        minRotation: 45
-                    }
+                    grid: { display: false },
+                    ticks: { color: '#9ca3af' }
                 },
                 y: {
-                    grid: {
-                        color: isDark ? '#374151' : '#e5e7eb'
-                    },
+                    grid: { color: '#374151' },
                     ticks: {
-                        color: isDark ? '#9ca3af' : '#4b5563',
+                        color: '#9ca3af',
                         callback: function(value) {
-                            return formatCurrency(value);
+                            return '$' + (value / 1000) + 'k';
                         }
                     }
                 }
