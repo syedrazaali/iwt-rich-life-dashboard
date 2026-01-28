@@ -818,4 +818,5 @@ function init() {
     console.log('Dashboard loaded with', getData().snapshots.length, 'snapshots');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Init is called by auth.js after successful authentication
+// document.addEventListener('DOMContentLoaded', init);
