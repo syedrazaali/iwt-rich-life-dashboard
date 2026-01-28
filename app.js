@@ -165,15 +165,46 @@ function openModal() {
 
     // Pre-fill with latest snapshot values
     const latest = getLatestSnapshot();
+    const bd = latest.breakdown || {};
+
     document.getElementById('snapDate').value = new Date().toISOString().split('T')[0];
-    document.getElementById('snapAssets').value = latest.netWorth.assets;
-    document.getElementById('snapInvestments').value = latest.netWorth.investments;
-    document.getElementById('snapSavings').value = latest.netWorth.savings;
-    document.getElementById('snapDebt').value = latest.netWorth.debt;
-    document.getElementById('snapFixedCosts').value = latest.csp.fixedCosts;
-    document.getElementById('snapCspInvestments').value = latest.csp.investments;
-    document.getElementById('snapSavingsGoals').value = latest.csp.savingsGoals;
-    document.getElementById('snapGuiltFree').value = latest.csp.guiltFreeSpending;
+
+    // Net Worth
+    document.getElementById('snapAssets').value = latest.netWorth.assets || 0;
+    document.getElementById('snapInvestments').value = latest.netWorth.investments || 0;
+    document.getElementById('snapSavings').value = latest.netWorth.savings || 0;
+    document.getElementById('snapDebt').value = latest.netWorth.debt || 0;
+
+    // Fixed Costs breakdown
+    document.getElementById('snapRent').value = bd.rent || 0;
+    document.getElementById('snapUtilities').value = bd.utilities || 0;
+    document.getElementById('snapInsurance').value = bd.insurance || 0;
+    document.getElementById('snapCar').value = bd.car || 0;
+    document.getElementById('snapGroceries').value = bd.groceries || 0;
+    document.getElementById('snapPhone').value = bd.phone || 0;
+    document.getElementById('snapSubscriptions').value = bd.subscriptions || 0;
+    document.getElementById('snapDebtPayments').value = bd.debtPayments || 0;
+    document.getElementById('snapHaircut').value = bd.haircut || 0;
+    document.getElementById('snapOtherFixed').value = bd.otherFixed || 0;
+
+    // Investments breakdown
+    document.getElementById('snapRothIRA').value = bd.rothIRA || 0;
+    document.getElementById('snap401k').value = bd.contrib401k || 0;
+    document.getElementById('snapStocks').value = bd.stocks || 0;
+    document.getElementById('snapCrypto').value = bd.crypto || 0;
+
+    // Savings Goals breakdown
+    document.getElementById('snapVacations').value = bd.vacations || 0;
+    document.getElementById('snapWedding').value = bd.wedding || 0;
+    document.getElementById('snapEmergency').value = bd.emergency || 0;
+    document.getElementById('snapHomeSavings').value = bd.homeSavings || 0;
+
+    // Guilt-Free
+    document.getElementById('snapGuiltFree').value = latest.csp.guiltFreeSpending || 0;
+
+    // Trigger calculations
+    calcNetWorth();
+    calcCSP();
 }
 
 function closeModal() {
@@ -208,13 +239,88 @@ function updateIncome() {
     }
 }
 
+// Form calculation functions
+function getVal(id) {
+    return parseInt(document.getElementById(id).value) || 0;
+}
+
+function calcNetWorth() {
+    const assets = getVal('snapAssets');
+    const investments = getVal('snapInvestments');
+    const savings = getVal('snapSavings');
+    const debt = getVal('snapDebt');
+    const total = assets + investments + savings - debt;
+
+    document.getElementById('nwTotalCalc').textContent = formatCurrency(total);
+}
+
+function calcCSP() {
+    const data = getData();
+    const netIncome = data.income.net;
+
+    // Fixed Costs
+    const fixedTotal = getVal('snapRent') + getVal('snapUtilities') + getVal('snapInsurance') +
+                       getVal('snapCar') + getVal('snapGroceries') + getVal('snapPhone') +
+                       getVal('snapSubscriptions') + getVal('snapDebtPayments') +
+                       getVal('snapHaircut') + getVal('snapOtherFixed');
+    const fixedPct = (fixedTotal / netIncome) * 100;
+    document.getElementById('fixedTotalCalc').textContent = formatCurrency(fixedTotal);
+    document.getElementById('fixedPctCalc').textContent = `(${fixedPct.toFixed(0)}%)`;
+    document.getElementById('fixedTotalCalc').className = fixedPct > 60 ? 'text-lg font-bold text-red-500' : 'text-lg font-bold text-fixed';
+
+    // Investments
+    const investTotal = getVal('snapRothIRA') + getVal('snap401k') + getVal('snapStocks') + getVal('snapCrypto');
+    const investPct = (investTotal / netIncome) * 100;
+    document.getElementById('investTotalCalc').textContent = formatCurrency(investTotal);
+    document.getElementById('investPctCalc').textContent = `(${investPct.toFixed(0)}%)`;
+    document.getElementById('investTotalCalc').className = investPct < 10 ? 'text-lg font-bold text-yellow-500' : 'text-lg font-bold text-invest';
+
+    // Savings Goals
+    const savingsTotal = getVal('snapVacations') + getVal('snapWedding') + getVal('snapEmergency') + getVal('snapHomeSavings');
+    const savingsPct = (savingsTotal / netIncome) * 100;
+    document.getElementById('savingsTotalCalc').textContent = formatCurrency(savingsTotal);
+    document.getElementById('savingsPctCalc').textContent = `(${savingsPct.toFixed(0)}%)`;
+
+    // Guilt-Free
+    const guiltFreeTotal = getVal('snapGuiltFree');
+    const guiltFreePct = (guiltFreeTotal / netIncome) * 100;
+    document.getElementById('guiltFreeTotalCalc').textContent = formatCurrency(guiltFreeTotal);
+    document.getElementById('guiltFreePctCalc').textContent = `(${guiltFreePct.toFixed(0)}%)`;
+    document.getElementById('guiltFreeTotalCalc').className = guiltFreePct > 35 ? 'text-lg font-bold text-yellow-500' : 'text-lg font-bold text-guilt-free';
+
+    // Total
+    const totalSpending = fixedTotal + investTotal + savingsTotal + guiltFreeTotal;
+    document.getElementById('totalSpendingCalc').textContent = formatCurrency(totalSpending);
+
+    // Warning if over budget
+    const warning = document.getElementById('spendingWarning');
+    if (totalSpending > netIncome) {
+        warning.textContent = `Warning: Spending exceeds income by ${formatCurrency(totalSpending - netIncome)}`;
+        warning.classList.remove('hidden');
+    } else {
+        warning.classList.add('hidden');
+    }
+}
+
 function handleSnapshotSubmit(e) {
     e.preventDefault();
 
-    const assets = parseInt(document.getElementById('snapAssets').value) || 0;
-    const investments = parseInt(document.getElementById('snapInvestments').value) || 0;
-    const savings = parseInt(document.getElementById('snapSavings').value) || 0;
-    const debt = parseInt(document.getElementById('snapDebt').value) || 0;
+    const assets = getVal('snapAssets');
+    const investments = getVal('snapInvestments');
+    const savings = getVal('snapSavings');
+    const debt = getVal('snapDebt');
+
+    // Calculate CSP totals from breakdown
+    const fixedCosts = getVal('snapRent') + getVal('snapUtilities') + getVal('snapInsurance') +
+                       getVal('snapCar') + getVal('snapGroceries') + getVal('snapPhone') +
+                       getVal('snapSubscriptions') + getVal('snapDebtPayments') +
+                       getVal('snapHaircut') + getVal('snapOtherFixed');
+
+    const cspInvestments = getVal('snapRothIRA') + getVal('snap401k') + getVal('snapStocks') + getVal('snapCrypto');
+
+    const savingsGoals = getVal('snapVacations') + getVal('snapWedding') + getVal('snapEmergency') + getVal('snapHomeSavings');
+
+    const guiltFreeSpending = getVal('snapGuiltFree');
 
     const snapshot = {
         date: document.getElementById('snapDate').value,
@@ -226,10 +332,33 @@ function handleSnapshotSubmit(e) {
             total: assets + investments + savings - debt
         },
         csp: {
-            fixedCosts: parseInt(document.getElementById('snapFixedCosts').value) || 0,
-            investments: parseInt(document.getElementById('snapCspInvestments').value) || 0,
-            savingsGoals: parseInt(document.getElementById('snapSavingsGoals').value) || 0,
-            guiltFreeSpending: parseInt(document.getElementById('snapGuiltFree').value) || 0
+            fixedCosts,
+            investments: cspInvestments,
+            savingsGoals,
+            guiltFreeSpending
+        },
+        breakdown: {
+            // Fixed costs
+            rent: getVal('snapRent'),
+            utilities: getVal('snapUtilities'),
+            insurance: getVal('snapInsurance'),
+            car: getVal('snapCar'),
+            groceries: getVal('snapGroceries'),
+            phone: getVal('snapPhone'),
+            subscriptions: getVal('snapSubscriptions'),
+            debtPayments: getVal('snapDebtPayments'),
+            haircut: getVal('snapHaircut'),
+            otherFixed: getVal('snapOtherFixed'),
+            // Investments
+            rothIRA: getVal('snapRothIRA'),
+            contrib401k: getVal('snap401k'),
+            stocks: getVal('snapStocks'),
+            crypto: getVal('snapCrypto'),
+            // Savings
+            vacations: getVal('snapVacations'),
+            wedding: getVal('snapWedding'),
+            emergency: getVal('snapEmergency'),
+            homeSavings: getVal('snapHomeSavings')
         }
     };
 

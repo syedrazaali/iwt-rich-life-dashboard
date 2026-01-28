@@ -232,6 +232,29 @@ const FINANCE_DATA = {
                 investments: 425,
                 savingsGoals: 1500,
                 guiltFreeSpending: 2999
+            },
+            breakdown: {
+                // Fixed Costs
+                rent: 2000,
+                utilities: 0,
+                insurance: 319,
+                car: 486,
+                groceries: 0,
+                phone: 0,
+                subscriptions: 80,
+                debtPayments: 0,
+                haircut: 50,
+                otherFixed: 0,
+                // Investments
+                rothIRA: 425,
+                contrib401k: 0,
+                stocks: 0,
+                crypto: 0,
+                // Savings Goals
+                vacations: 500,
+                wedding: 1000,
+                emergency: 0,
+                homeSavings: 0
             }
         }
     ],

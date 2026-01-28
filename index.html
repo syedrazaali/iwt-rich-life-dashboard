@@ -258,8 +258,8 @@
 
     <!-- Add Snapshot Modal -->
     <div id="snapshotModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div class="p-6 border-b border-gray-800">
+        <div class="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-800 sticky top-0 bg-gray-900 z-10">
                 <div class="flex items-center justify-between">
                     <h3 class="text-xl font-semibold">Add Snapshot</h3>
                     <button onclick="closeModal()" class="text-gray-400 hover:text-white">
@@ -275,48 +275,234 @@
                     <input type="date" id="snapDate" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-iwt-purple focus:outline-none">
                 </div>
 
+                <!-- NET WORTH SECTION -->
                 <div class="border-t border-gray-800 pt-4">
-                    <h4 class="text-sm font-semibold text-gray-300 mb-3">Net Worth</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Assets</label>
-                            <input type="number" id="snapAssets" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-semibold text-white uppercase tracking-wider">Net Worth</h4>
+                        <span id="nwTotalCalc" class="text-lg font-bold text-iwt-purple">$0</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-gray-400 w-48 flex-shrink-0">Assets (car, home, property)</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-3 top-2 text-gray-500">$</span>
+                                <input type="number" id="snapAssets" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2 text-white focus:border-iwt-purple focus:outline-none" oninput="calcNetWorth()">
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Investments</label>
-                            <input type="number" id="snapInvestments" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-gray-400 w-48 flex-shrink-0">Investments (401K, all investments)</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-3 top-2 text-gray-500">$</span>
+                                <input type="number" id="snapInvestments" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2 text-white focus:border-iwt-purple focus:outline-none" oninput="calcNetWorth()">
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Savings</label>
-                            <input type="number" id="snapSavings" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-gray-400 w-48 flex-shrink-0">Savings</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-3 top-2 text-gray-500">$</span>
+                                <input type="number" id="snapSavings" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2 text-white focus:border-iwt-purple focus:outline-none" oninput="calcNetWorth()">
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Debt</label>
-                            <input type="number" id="snapDebt" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-gray-400 w-48 flex-shrink-0">Debt (loans, credit cards, mortgage)</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-3 top-2 text-gray-500">$</span>
+                                <input type="number" id="snapDebt" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2 text-white focus:border-red-500 focus:outline-none text-red-400" oninput="calcNetWorth()">
+                            </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- FIXED COSTS SECTION -->
                 <div class="border-t border-gray-800 pt-4">
-                    <h4 class="text-sm font-semibold text-gray-300 mb-3">Monthly Spending (CSP)</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Fixed Costs</label>
-                            <input type="number" id="snapFixedCosts" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Investments</label>
-                            <input type="number" id="snapCspInvestments" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Savings Goals</label>
-                            <input type="number" id="snapSavingsGoals" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Guilt-Free</label>
-                            <input type="number" id="snapGuiltFree" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-semibold text-fixed uppercase tracking-wider">Fixed Costs <span class="text-gray-500 font-normal">(50-60%)</span></h4>
+                        <div class="text-right">
+                            <span id="fixedTotalCalc" class="text-lg font-bold text-fixed">$0</span>
+                            <span id="fixedPctCalc" class="text-sm text-gray-500 ml-1">(0%)</span>
                         </div>
                     </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Rent/Mortgage</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapRent" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Utilities</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapUtilities" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Insurance</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapInsurance" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Car/Transport</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapCar" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Groceries</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapGroceries" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Phone</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapPhone" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Subscriptions</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapSubscriptions" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Debt Payments</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapDebtPayments" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Haircut</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapHaircut" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Other Fixed</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapOtherFixed" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-fixed focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INVESTMENTS SECTION -->
+                <div class="border-t border-gray-800 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-semibold text-invest uppercase tracking-wider">Investments <span class="text-gray-500 font-normal">(10%+)</span></h4>
+                        <div class="text-right">
+                            <span id="investTotalCalc" class="text-lg font-bold text-invest">$0</span>
+                            <span id="investPctCalc" class="text-sm text-gray-500 ml-1">(0%)</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Roth IRA</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapRothIRA" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-invest focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">401K</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snap401k" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-invest focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Stocks</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapStocks" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-invest focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Crypto</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapCrypto" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-invest focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SAVINGS GOALS SECTION -->
+                <div class="border-t border-gray-800 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-semibold text-savings uppercase tracking-wider">Savings Goals <span class="text-gray-500 font-normal">(5-10%)</span></h4>
+                        <div class="text-right">
+                            <span id="savingsTotalCalc" class="text-lg font-bold text-savings">$0</span>
+                            <span id="savingsPctCalc" class="text-sm text-gray-500 ml-1">(0%)</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Vacations</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapVacations" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-savings focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Wedding</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapWedding" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-savings focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Emergency Fund</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapEmergency" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-savings focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-gray-400 w-24 flex-shrink-0">Home Down Pmt</label>
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-2 text-gray-500 text-sm">$</span>
+                                <input type="number" id="snapHomeSavings" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-6 pr-2 py-2 text-sm text-white focus:border-savings focus:outline-none" oninput="calcCSP()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GUILT-FREE SPENDING SECTION -->
+                <div class="border-t border-gray-800 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-sm font-semibold text-guilt-free uppercase tracking-wider">Guilt-Free Spending <span class="text-gray-500 font-normal">(20-35%)</span></h4>
+                        <div class="text-right">
+                            <span id="guiltFreeTotalCalc" class="text-lg font-bold text-guilt-free">$0</span>
+                            <span id="guiltFreePctCalc" class="text-sm text-gray-500 ml-1">(0%)</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="text-xs text-gray-400 w-48 flex-shrink-0">Dining, movies, fun, etc.</label>
+                        <div class="relative flex-1">
+                            <span class="absolute left-3 top-2 text-gray-500">$</span>
+                            <input type="number" id="snapGuiltFree" class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2 text-white focus:border-guilt-free focus:outline-none" oninput="calcCSP()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOTAL SPENDING -->
+                <div class="border-t border-gray-800 pt-4 bg-gray-800/30 -mx-6 px-6 py-4 rounded-b-2xl">
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-400">Total Monthly Spending</span>
+                        <span id="totalSpendingCalc" class="text-xl font-bold text-white">$0</span>
+                    </div>
+                    <div id="spendingWarning" class="mt-2 text-sm text-yellow-500 hidden"></div>
                 </div>
 
                 <div class="flex gap-3 pt-4">
