@@ -1,7 +1,82 @@
 /**
  * IWT Rich Life Dashboard - Application Logic
  * Personal Nerd Wallet with Ramit Sethi's Conscious Spending Plan
+ *
+ * Data is stored in localStorage for persistence.
+ * Use Export to backup, Import to restore.
  */
+
+const STORAGE_KEY = 'iwt_dashboard_data';
+
+// ============================================
+// DATA MANAGEMENT
+// ============================================
+
+function loadData() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+        try {
+            return JSON.parse(stored);
+        } catch (e) {
+            console.error('Failed to parse stored data:', e);
+        }
+    }
+    // Fall back to default data from finance-data.js
+    return JSON.parse(JSON.stringify(FINANCE_DATA));
+}
+
+function saveData(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function getData() {
+    if (!window._dashboardData) {
+        window._dashboardData = loadData();
+    }
+    return window._dashboardData;
+}
+
+function resetData() {
+    if (confirm('Reset all data to defaults? This cannot be undone.')) {
+        localStorage.removeItem(STORAGE_KEY);
+        window._dashboardData = null;
+        location.reload();
+    }
+}
+
+function exportData() {
+    const data = getData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `iwt-dashboard-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    closeSettingsModal();
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.snapshots && data.income) {
+                saveData(data);
+                window._dashboardData = data;
+                location.reload();
+            } else {
+                alert('Invalid data format');
+            }
+        } catch (err) {
+            alert('Failed to import: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -36,14 +111,14 @@ function formatShortDate(dateStr) {
 }
 
 function getLatestSnapshot() {
-    const snapshots = FINANCE_DATA.snapshots;
-    return snapshots[snapshots.length - 1];
+    const data = getData();
+    return data.snapshots[data.snapshots.length - 1];
 }
 
 function getPreviousSnapshot() {
-    const snapshots = FINANCE_DATA.snapshots;
-    if (snapshots.length < 2) return null;
-    return snapshots[snapshots.length - 2];
+    const data = getData();
+    if (data.snapshots.length < 2) return null;
+    return data.snapshots[data.snapshots.length - 2];
 }
 
 function getMonthsUntilGoal(remaining, monthlyContribution) {
@@ -77,6 +152,98 @@ function getTrendHTML(trend, invertColors = false) {
     const sign = trend.change >= 0 ? '+' : '';
 
     return `<span class="${colorClass} text-sm font-medium">${arrow} ${sign}${formatCurrency(trend.change)} (${sign}${trend.percent.toFixed(1)}%)</span>`;
+}
+
+// ============================================
+// MODAL FUNCTIONS
+// ============================================
+
+function openModal() {
+    const modal = document.getElementById('snapshotModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    // Pre-fill with latest snapshot values
+    const latest = getLatestSnapshot();
+    document.getElementById('snapDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('snapAssets').value = latest.netWorth.assets;
+    document.getElementById('snapInvestments').value = latest.netWorth.investments;
+    document.getElementById('snapSavings').value = latest.netWorth.savings;
+    document.getElementById('snapDebt').value = latest.netWorth.debt;
+    document.getElementById('snapFixedCosts').value = latest.csp.fixedCosts;
+    document.getElementById('snapCspInvestments').value = latest.csp.investments;
+    document.getElementById('snapSavingsGoals').value = latest.csp.savingsGoals;
+    document.getElementById('snapGuiltFree').value = latest.csp.guiltFreeSpending;
+}
+
+function closeModal() {
+    const modal = document.getElementById('snapshotModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function openSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('settingsIncome').value = getData().income.net;
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function updateIncome() {
+    const newIncome = parseInt(document.getElementById('settingsIncome').value);
+    if (newIncome && newIncome > 0) {
+        const data = getData();
+        data.income.net = newIncome;
+        data.income.lastUpdated = new Date().toISOString().split('T')[0];
+        saveData(data);
+        window._dashboardData = data;
+        refreshDashboard();
+        closeSettingsModal();
+    }
+}
+
+function handleSnapshotSubmit(e) {
+    e.preventDefault();
+
+    const assets = parseInt(document.getElementById('snapAssets').value) || 0;
+    const investments = parseInt(document.getElementById('snapInvestments').value) || 0;
+    const savings = parseInt(document.getElementById('snapSavings').value) || 0;
+    const debt = parseInt(document.getElementById('snapDebt').value) || 0;
+
+    const snapshot = {
+        date: document.getElementById('snapDate').value,
+        netWorth: {
+            assets,
+            investments,
+            savings,
+            debt,
+            total: assets + investments + savings - debt
+        },
+        csp: {
+            fixedCosts: parseInt(document.getElementById('snapFixedCosts').value) || 0,
+            investments: parseInt(document.getElementById('snapCspInvestments').value) || 0,
+            savingsGoals: parseInt(document.getElementById('snapSavingsGoals').value) || 0,
+            guiltFreeSpending: parseInt(document.getElementById('snapGuiltFree').value) || 0
+        }
+    };
+
+    const data = getData();
+    data.snapshots.push(snapshot);
+
+    // Sort by date
+    data.snapshots.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    saveData(data);
+    window._dashboardData = data;
+
+    closeModal();
+    refreshDashboard();
 }
 
 // ============================================
@@ -119,9 +286,10 @@ function toggleDarkMode() {
 // ============================================
 
 function getCSPHealth() {
+    const data = getData();
     const latest = getLatestSnapshot();
-    const netIncome = FINANCE_DATA.income.net;
-    const targets = FINANCE_DATA.targets;
+    const netIncome = data.income.net;
+    const targets = data.targets;
 
     const fixedPct = calculatePercentage(latest.csp.fixedCosts, netIncome);
     const investPct = calculatePercentage(latest.csp.investments, netIncome);
@@ -131,40 +299,31 @@ function getCSPHealth() {
     const issues = [];
     let score = 0;
 
-    // Check Fixed Costs
     if (fixedPct <= targets.fixedCosts.max) {
         score += 25;
     } else {
         issues.push(`Fixed costs at ${formatPercent(fixedPct)} (target: ≤${targets.fixedCosts.max}%)`);
     }
 
-    // Check Investments
     if (investPct >= targets.investments.min) {
         score += 25;
     } else {
         issues.push(`Investments at ${formatPercent(investPct)} (target: ≥${targets.investments.min}%)`);
     }
 
-    // Check Savings
     if (savingsPct >= targets.savingsGoals.min) {
         score += 25;
     } else {
         issues.push(`Savings at ${formatPercent(savingsPct)} (target: ≥${targets.savingsGoals.min}%)`);
     }
 
-    // Check Guilt-Free is within range
     if (guiltFreePct >= targets.guiltFreeSpending.min && guiltFreePct <= targets.guiltFreeSpending.max) {
         score += 25;
     } else if (guiltFreePct > targets.guiltFreeSpending.max) {
         issues.push(`Guilt-free at ${formatPercent(guiltFreePct)} (target: ≤${targets.guiltFreeSpending.max}%)`);
     }
 
-    return {
-        score,
-        isHealthy: score >= 75,
-        issues,
-        percentages: { fixedPct, investPct, savingsPct, guiltFreePct }
-    };
+    return { score, isHealthy: score >= 75, issues, percentages: { fixedPct, investPct, savingsPct, guiltFreePct } };
 }
 
 function updateHealthIndicator() {
@@ -223,10 +382,7 @@ function renderCSPChart() {
             responsive: true,
             maintainAspectRatio: true,
             cutout: '65%',
-            animation: {
-                animateRotate: true,
-                duration: 800
-            },
+            animation: { animateRotate: true, duration: 800 },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -251,28 +407,24 @@ function renderCSPChart() {
 }
 
 function updateCSPBreakdown() {
+    const data = getData();
     const latest = getLatestSnapshot();
-    const previous = getPreviousSnapshot();
-    const netIncome = FINANCE_DATA.income.net;
+    const netIncome = data.income.net;
 
     document.getElementById('monthlyIncome').textContent = formatCurrency(netIncome);
 
-    // Fixed Costs
     const fixedPct = calculatePercentage(latest.csp.fixedCosts, netIncome);
     document.getElementById('cspFixed').textContent = formatCurrency(latest.csp.fixedCosts);
     document.getElementById('cspFixedPct').textContent = `(${formatPercent(fixedPct)})`;
 
-    // Investments
     const investPct = calculatePercentage(latest.csp.investments, netIncome);
     document.getElementById('cspInvest').textContent = formatCurrency(latest.csp.investments);
     document.getElementById('cspInvestPct').textContent = `(${formatPercent(investPct)})`;
 
-    // Savings
     const savingsPct = calculatePercentage(latest.csp.savingsGoals, netIncome);
     document.getElementById('cspSavings').textContent = formatCurrency(latest.csp.savingsGoals);
     document.getElementById('cspSavingsPct').textContent = `(${formatPercent(savingsPct)})`;
 
-    // Guilt-Free
     const guiltFreePct = calculatePercentage(latest.csp.guiltFreeSpending, netIncome);
     document.getElementById('cspGuiltFree').textContent = formatCurrency(latest.csp.guiltFreeSpending);
     document.getElementById('cspGuiltFreePct').textContent = `(${formatPercent(guiltFreePct)})`;
@@ -284,9 +436,9 @@ function updateCSPBreakdown() {
 
 function renderNetWorthChart() {
     const ctx = document.getElementById('netWorthChart').getContext('2d');
-    let snapshots = [...FINANCE_DATA.snapshots];
+    const data = getData();
+    let snapshots = [...data.snapshots];
 
-    // Apply range filter
     if (currentChartRange > 0 && snapshots.length > currentChartRange) {
         snapshots = snapshots.slice(-currentChartRange);
     }
@@ -317,14 +469,8 @@ function renderNetWorthChart() {
         },
         options: {
             responsive: false,
-            animation: {
-                duration: 800,
-                easing: 'easeOutQuart'
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
+            animation: { duration: 800, easing: 'easeOutQuart' },
+            interaction: { intersect: false, mode: 'index' },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -340,10 +486,7 @@ function renderNetWorthChart() {
                 }
             },
             scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#9ca3af' }
-                },
+                x: { grid: { display: false }, ticks: { color: '#9ca3af' } },
                 y: {
                     grid: { color: '#374151' },
                     ticks: {
@@ -360,7 +503,6 @@ function renderNetWorthChart() {
 
 function setChartRange(months) {
     currentChartRange = months;
-
     document.querySelectorAll('.chart-range-btn').forEach(btn => {
         const btnRange = parseInt(btn.dataset.range);
         if (btnRange === months) {
@@ -371,7 +513,6 @@ function setChartRange(months) {
             btn.classList.remove('bg-iwt-purple', 'text-white');
         }
     });
-
     renderNetWorthChart();
 }
 
@@ -380,14 +521,12 @@ function updateNetWorthDisplay() {
     const previous = getPreviousSnapshot();
     const nw = latest.netWorth;
 
-    // Update totals
     document.getElementById('netWorthTotal').textContent = formatCurrency(nw.total);
     document.getElementById('nwAssets').textContent = formatCurrency(nw.assets);
     document.getElementById('nwInvestments').textContent = formatCurrency(nw.investments);
     document.getElementById('nwSavings').textContent = formatCurrency(nw.savings);
     document.getElementById('nwDebt').textContent = formatCurrency(nw.debt);
 
-    // Calculate and display trend
     const changeContainer = document.getElementById('netWorthChange');
     if (previous) {
         const trend = calculateTrend(nw.total, previous.netWorth.total);
@@ -405,18 +544,15 @@ function updateNetWorthDisplay() {
 // ============================================
 
 function updateStatsCards() {
-    const snapshots = FINANCE_DATA.snapshots;
+    const data = getData();
+    const snapshots = data.snapshots;
     const latest = getLatestSnapshot();
     const first = snapshots[0];
 
-    // Calculate all-time growth
     const allTimeGrowth = calculateTrend(latest.netWorth.total, first.netWorth.total);
-
-    // Calculate average monthly growth
     const monthsTracked = snapshots.length;
     const avgMonthlyGrowth = allTimeGrowth.change / Math.max(monthsTracked - 1, 1);
 
-    // Update stats section if it exists
     const statsContainer = document.getElementById('statsContainer');
     if (statsContainer) {
         statsContainer.innerHTML = `
@@ -444,7 +580,8 @@ function updateStatsCards() {
 // ============================================
 
 function renderGoals() {
-    const { goals } = FINANCE_DATA;
+    const data = getData();
+    const goals = data.goals;
     const container = document.getElementById('goalsContainer');
 
     container.innerHTML = '';
@@ -494,22 +631,10 @@ function renderGoals() {
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <p class="text-gray-500">Saved</p>
-                    <p class="text-white font-semibold">${formatCurrency(goal.currentAmount)}</p>
-                </div>
-                <div>
-                    <p class="text-gray-500">Goal</p>
-                    <p class="text-white font-semibold">${formatCurrency(goal.targetAmount)}</p>
-                </div>
-                <div>
-                    <p class="text-gray-500">Remaining</p>
-                    <p class="text-white font-semibold">${formatCurrency(remaining)}</p>
-                </div>
-                <div>
-                    <p class="text-gray-500">Est. Complete</p>
-                    <p class="text-iwt-purple font-semibold">${monthsToGoal === Infinity ? 'N/A' : estimatedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
-                </div>
+                <div><p class="text-gray-500">Saved</p><p class="text-white font-semibold">${formatCurrency(goal.currentAmount)}</p></div>
+                <div><p class="text-gray-500">Goal</p><p class="text-white font-semibold">${formatCurrency(goal.targetAmount)}</p></div>
+                <div><p class="text-gray-500">Remaining</p><p class="text-white font-semibold">${formatCurrency(remaining)}</p></div>
+                <div><p class="text-gray-500">Est. Complete</p><p class="text-iwt-purple font-semibold">${monthsToGoal === Infinity ? 'N/A' : estimatedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p></div>
             </div>
             ${goal.notes ? `<p class="mt-4 text-xs text-gray-500 italic">"${goal.notes}"</p>` : ''}
         `;
@@ -518,36 +643,50 @@ function renderGoals() {
 }
 
 // ============================================
-// INITIALIZATION
+// REFRESH & INITIALIZATION
 // ============================================
 
-function updateLastUpdated() {
-    const latest = getLatestSnapshot();
-    document.getElementById('lastUpdated').textContent = `Last update: ${formatDate(latest.date)}`;
-}
-
-function init() {
-    // Check dark mode preference
-    const savedDarkMode = localStorage.getItem('darkMode');
-    if (savedDarkMode === 'false') {
-        toggleDarkMode();
-    }
-
-    // Update all displays
+function refreshDashboard() {
     updateLastUpdated();
     updateNetWorthDisplay();
     updateCSPBreakdown();
     updateHealthIndicator();
     updateStatsCards();
-
-    // Render charts
     renderCSPChart();
     renderNetWorthChart();
-
-    // Render goals
     renderGoals();
+}
 
-    console.log('Dashboard loaded with', FINANCE_DATA.snapshots.length, 'snapshots');
+function updateLastUpdated() {
+    const latest = getLatestSnapshot();
+    document.getElementById('lastUpdated').textContent = `Last: ${formatDate(latest.date)}`;
+}
+
+function init() {
+    // Load data (from localStorage or defaults)
+    getData();
+
+    // Check dark mode
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode === 'false') {
+        toggleDarkMode();
+    }
+
+    // Setup form handler
+    document.getElementById('snapshotForm').addEventListener('submit', handleSnapshotSubmit);
+
+    // Close modals on backdrop click
+    document.getElementById('snapshotModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+    document.getElementById('settingsModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSettingsModal();
+    });
+
+    // Initial render
+    refreshDashboard();
+
+    console.log('Dashboard loaded with', getData().snapshots.length, 'snapshots');
 }
 
 document.addEventListener('DOMContentLoaded', init);

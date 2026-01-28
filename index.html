@@ -65,8 +65,15 @@
                         <p class="text-xs text-gray-500">IWT Conscious Spending Plan</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <span id="lastUpdated" class="text-sm text-gray-500"></span>
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <span id="lastUpdated" class="text-sm text-gray-500 hidden sm:inline"></span>
+                    <button onclick="openModal()" class="px-3 py-2 rounded-lg bg-iwt-purple hover:bg-purple-600 transition-colors text-white text-sm font-medium flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span class="hidden sm:inline">Add Snapshot</span>
+                    </button>
+                    <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors" title="Settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </button>
                     <button onclick="toggleDarkMode()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">
                         <svg id="darkIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
@@ -248,6 +255,115 @@
             </div>
         </section>
     </main>
+
+    <!-- Add Snapshot Modal -->
+    <div id="snapshotModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-800">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-semibold">Add Snapshot</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <form id="snapshotForm" class="p-6 space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Date</label>
+                    <input type="date" id="snapDate" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                </div>
+
+                <div class="border-t border-gray-800 pt-4">
+                    <h4 class="text-sm font-semibold text-gray-300 mb-3">Net Worth</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Assets</label>
+                            <input type="number" id="snapAssets" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Investments</label>
+                            <input type="number" id="snapInvestments" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Savings</label>
+                            <input type="number" id="snapSavings" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Debt</label>
+                            <input type="number" id="snapDebt" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-800 pt-4">
+                    <h4 class="text-sm font-semibold text-gray-300 mb-3">Monthly Spending (CSP)</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Fixed Costs</label>
+                            <input type="number" id="snapFixedCosts" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Investments</label>
+                            <input type="number" id="snapCspInvestments" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Savings Goals</label>
+                            <input type="number" id="snapSavingsGoals" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Guilt-Free</label>
+                            <input type="number" id="snapGuiltFree" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-iwt-purple text-white rounded-lg hover:bg-purple-600 transition-colors">Save Snapshot</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-lg">
+            <div class="p-6 border-b border-gray-800">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-semibold">Settings & Data</h3>
+                    <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">Net Monthly Income</label>
+                    <input type="number" id="settingsIncome" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-iwt-purple focus:outline-none">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="updateIncome()" class="flex-1 px-4 py-2 bg-iwt-purple text-white rounded-lg hover:bg-purple-600 transition-colors">Update Income</button>
+                </div>
+                <div class="border-t border-gray-800 pt-4 space-y-3">
+                    <button onclick="exportData()" class="w-full px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Export Data (JSON)
+                    </button>
+                    <label class="w-full px-4 py-2 bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        Import Data (JSON)
+                        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+                    </label>
+                    <button onclick="resetData()" class="w-full px-4 py-2 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors">Reset to Default Data</button>
+                </div>
+                <p class="text-xs text-gray-500 text-center">Data is stored in your browser's localStorage</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="border-t border-gray-800 mt-12 py-6">
