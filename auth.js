@@ -1,98 +1,125 @@
 /**
- * Simple Password Gate Authentication
- * This is a deterrent layer for casual visitors, not bank-level security.
+ * Firebase Google Authentication
+ * Only allows access for specific email address
  *
- * To change the password:
- * 1. Open browser console on any page
- * 2. Run: await crypto.subtle.digest('SHA-256', new TextEncoder().encode('YOUR_NEW_PASSWORD')).then(h => Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join(''))
- * 3. Copy the hash and replace PASSWORD_HASH below
+ * SETUP (one-time, ~5 minutes):
+ * 1. Go to https://console.firebase.google.com/
+ * 2. Create a new project (or use existing)
+ * 3. Go to Authentication → Sign-in method → Enable Google
+ * 4. Go to Project Settings → General → Your apps → Add web app
+ * 5. Copy the firebaseConfig values below
+ * 6. Go to Authentication → Settings → Authorized domains
+ *    Add: syedrazaali.github.io
  */
 
-const AUTH = {
-    // SHA-256 hash of password - default is "richlife"
-    // To change: run in browser console:
-    // hashPassword('YOUR_NEW_PASSWORD').then(h => console.log('New hash:', h))
-    PASSWORD_HASH: "c2417fc03d9cd8633f4e308d92d78c99917d58227947d9a53706950259da7d74",
-
-    // Session duration in days
-    SESSION_DAYS: 30,
-
-    // Storage key
-    STORAGE_KEY: "iwt_auth_token"
+// PASTE YOUR FIREBASE CONFIG HERE (from Firebase Console)
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
 };
 
-// Generate hash from password
-async function hashPassword(password) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password + "_iwt_salt_2024");
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+// Only this email can access the dashboard
+const ALLOWED_EMAIL = "srazaaliabidi@gmail.com";
 
-// Check if user is authenticated
-function isAuthenticated() {
-    const token = localStorage.getItem(AUTH.STORAGE_KEY);
-    if (!token) return false;
+// Firebase instances
+let auth = null;
+let provider = null;
+
+// Initialize Firebase
+function initFirebase() {
+    if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+        showSetupRequired();
+        return false;
+    }
 
     try {
-        const data = JSON.parse(atob(token));
-        const expiry = new Date(data.expiry);
-        return expiry > new Date();
-    } catch {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({
+            prompt: 'select_account',
+            login_hint: ALLOWED_EMAIL
+        });
+        return true;
+    } catch (error) {
+        console.error("Firebase init error:", error);
+        showError("Failed to initialize authentication");
         return false;
     }
 }
 
-// Set authentication
-function setAuthenticated() {
-    const expiry = new Date();
-    expiry.setDate(expiry.getDate() + AUTH.SESSION_DAYS);
-    const token = btoa(JSON.stringify({ auth: true, expiry: expiry.toISOString() }));
-    localStorage.setItem(AUTH.STORAGE_KEY, token);
+// Check authentication state
+function checkAuth() {
+    if (!initFirebase()) return;
+
+    showLoading();
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            // User is signed in - verify email
+            if (user.email.toLowerCase() === ALLOWED_EMAIL.toLowerCase()) {
+                showDashboard(user);
+            } else {
+                // Wrong email - sign them out
+                showAccessDenied(user.email);
+                setTimeout(() => signOut(), 3000);
+            }
+        } else {
+            // No user signed in
+            showLoginScreen();
+        }
+    });
 }
 
-// Clear authentication
-function clearAuth() {
-    localStorage.removeItem(AUTH.STORAGE_KEY);
-    showLoginScreen();
-}
+// Sign in with Google
+async function signIn() {
+    if (!auth) return;
 
-// Verify password
-async function verifyPassword(password) {
-    const hash = await hashPassword(password);
-    return hash === AUTH.PASSWORD_HASH;
-}
+    showLoading();
 
-// Handle login form submit
-async function handleLogin(e) {
-    e.preventDefault();
-    const password = document.getElementById('authPassword').value;
-    const errorEl = document.getElementById('authError');
-    const submitBtn = document.getElementById('authSubmit');
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Verifying...';
-    errorEl.classList.add('hidden');
-
-    // Small delay to prevent brute force
-    await new Promise(r => setTimeout(r, 500));
-
-    const isValid = await verifyPassword(password);
-
-    if (isValid) {
-        setAuthenticated();
-        showDashboard();
-    } else {
-        errorEl.textContent = 'Incorrect password';
-        errorEl.classList.remove('hidden');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Access Dashboard';
-        document.getElementById('authPassword').value = '';
+    try {
+        await auth.signInWithPopup(provider);
+        // onAuthStateChanged will handle the rest
+    } catch (error) {
+        console.error("Sign in error:", error);
+        if (error.code === 'auth/popup-closed-by-user') {
+            showLoginScreen();
+        } else if (error.code === 'auth/unauthorized-domain') {
+            showError("Domain not authorized. Add this domain in Firebase Console → Authentication → Settings → Authorized domains");
+        } else {
+            showError(error.message || "Sign in failed");
+        }
     }
 }
 
-// Show login screen
+// Sign out
+async function signOut() {
+    if (!auth) return;
+
+    try {
+        await auth.signOut();
+    } catch (error) {
+        console.error("Sign out error:", error);
+    }
+    showLoginScreen();
+}
+
+// UI Functions
+function showLoading() {
+    document.getElementById('authScreen').innerHTML = `
+        <div class="flex flex-col items-center justify-center min-h-screen bg-gray-950">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-iwt-purple border-t-transparent"></div>
+            <p class="mt-4 text-gray-400">Authenticating...</p>
+        </div>
+    `;
+    document.getElementById('authScreen').classList.remove('hidden');
+    document.getElementById('dashboardContent').classList.add('hidden');
+}
+
 function showLoginScreen() {
     document.getElementById('authScreen').innerHTML = `
         <div class="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4">
@@ -106,56 +133,112 @@ function showLoginScreen() {
                     <h1 class="text-3xl font-bold bg-gradient-to-r from-iwt-purple to-blue-400 bg-clip-text text-transparent">
                         Rich Life Dashboard
                     </h1>
-                    <p class="text-gray-500 mt-2">Enter password to access your dashboard</p>
+                    <p class="text-gray-500 mt-2">Sign in to access your dashboard</p>
                 </div>
 
-                <form onsubmit="handleLogin(event)" class="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-400 mb-2">Password</label>
-                        <input
-                            type="password"
-                            id="authPassword"
-                            required
-                            autocomplete="current-password"
-                            class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-iwt-purple focus:outline-none focus:ring-1 focus:ring-iwt-purple"
-                            placeholder="Enter your password"
-                        >
-                    </div>
-
-                    <div id="authError" class="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm hidden"></div>
-
-                    <button
-                        type="submit"
-                        id="authSubmit"
-                        class="w-full px-6 py-3 bg-iwt-purple text-white rounded-xl font-medium hover:bg-purple-600 transition-colors"
-                    >
-                        Access Dashboard
+                <div class="bg-gray-900 rounded-2xl p-8 border border-gray-800">
+                    <button onclick="signIn()" class="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white text-gray-800 rounded-xl font-medium hover:bg-gray-100 transition-colors">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                        </svg>
+                        Sign in with Google
                     </button>
-                </form>
 
-                <p class="text-center text-gray-700 text-xs mt-8">
-                    Personal Finance Dashboard
+                    <p class="text-center text-gray-600 text-xs mt-6">
+                        Only authorized accounts can access this dashboard
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('authScreen').classList.remove('hidden');
+    document.getElementById('dashboardContent').classList.add('hidden');
+}
+
+function showSetupRequired() {
+    document.getElementById('authScreen').innerHTML = `
+        <div class="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4">
+            <div class="w-full max-w-lg text-center">
+                <div class="w-20 h-20 mx-auto rounded-full bg-yellow-500/20 flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">Firebase Setup Required</h2>
+                <div class="text-left bg-gray-900 rounded-xl p-6 border border-gray-800 text-sm text-gray-400">
+                    <ol class="list-decimal list-inside space-y-2">
+                        <li>Go to <a href="https://console.firebase.google.com/" target="_blank" class="text-iwt-purple hover:underline">Firebase Console</a></li>
+                        <li>Create a new project</li>
+                        <li>Authentication → Sign-in method → Enable Google</li>
+                        <li>Project Settings → Add web app</li>
+                        <li>Copy config to <code class="bg-gray-800 px-1 rounded">auth.js</code></li>
+                        <li>Auth → Settings → Add <code class="bg-gray-800 px-1 rounded">syedrazaali.github.io</code></li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('authScreen').classList.remove('hidden');
+    document.getElementById('dashboardContent').classList.add('hidden');
+}
+
+function showAccessDenied(email) {
+    document.getElementById('authScreen').innerHTML = `
+        <div class="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4">
+            <div class="w-full max-w-md text-center">
+                <div class="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                <p class="text-gray-400 mb-2">
+                    <span class="text-red-400">${email}</span>
+                </p>
+                <p class="text-gray-500 text-sm">
+                    This account is not authorized. Signing out...
                 </p>
             </div>
         </div>
     `;
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('dashboardContent').classList.add('hidden');
-
-    // Focus password field
-    setTimeout(() => document.getElementById('authPassword')?.focus(), 100);
 }
 
-// Show dashboard
-function showDashboard() {
+function showError(message) {
+    document.getElementById('authScreen').innerHTML = `
+        <div class="flex flex-col items-center justify-center min-h-screen bg-gray-950 px-4">
+            <div class="w-full max-w-md text-center">
+                <div class="w-20 h-20 mx-auto rounded-full bg-red-500/20 flex items-center justify-center mb-6">
+                    <svg class="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Error</h2>
+                <p class="text-gray-400 mb-6">${message}</p>
+                <button onclick="showLoginScreen()" class="px-6 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                    Try Again
+                </button>
+            </div>
+        </div>
+    `;
+    document.getElementById('authScreen').classList.remove('hidden');
+    document.getElementById('dashboardContent').classList.add('hidden');
+}
+
+function showDashboard(user) {
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('dashboardContent').classList.remove('hidden');
 
-    // Add logout button to header
+    // Show user info and logout in header
     const userDisplay = document.getElementById('userDisplay');
     if (userDisplay) {
         userDisplay.innerHTML = `
-            <button onclick="clearAuth()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors" title="Sign Out">
+            <img src="${user.photoURL || ''}" alt="" class="w-8 h-8 rounded-full border-2 border-gray-700 hidden sm:block">
+            <button onclick="signOut()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors" title="Sign Out">
                 <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                 </svg>
@@ -169,14 +252,5 @@ function showDashboard() {
     }
 }
 
-// Check auth on page load
-function checkAuth() {
-    if (isAuthenticated()) {
-        showDashboard();
-    } else {
-        showLoginScreen();
-    }
-}
-
-// Run on page load
+// Start auth check on page load
 document.addEventListener('DOMContentLoaded', checkAuth);
