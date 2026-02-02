@@ -406,7 +406,7 @@ function handleSnapshotSubmit(e) {
 
 let cspChart = null;
 let netWorthChart = null;
-let currentChartRange = 12;
+let currentChartRange = 0; // 0 = All (from Jan 2026)
 
 // ============================================
 // DARK MODE
@@ -588,11 +588,23 @@ function updateCSPBreakdown() {
 // NET WORTH LINE CHART
 // ============================================
 
+// Chart start date - January 2026
+const CHART_START_DATE = new Date('2026-01-01');
+
 function renderNetWorthChart() {
     const ctx = document.getElementById('netWorthChart').getContext('2d');
     const data = getData();
-    let snapshots = [...data.snapshots];
 
+    // Filter snapshots to only show from January 2026 onwards
+    let snapshots = data.snapshots.filter(s => new Date(s.date) >= CHART_START_DATE);
+
+    // If no snapshots from 2026+, use the most recent snapshot as starting point
+    if (snapshots.length === 0) {
+        const latest = getLatestSnapshot();
+        snapshots = [latest];
+    }
+
+    // Apply range filter if set (0 = all from start date)
     if (currentChartRange > 0 && snapshots.length > currentChartRange) {
         snapshots = snapshots.slice(-currentChartRange);
     }
@@ -761,6 +773,22 @@ function updateStatsCards() {
 // GOALS RENDERING
 // ============================================
 
+// Calculate wedding fund savings from snapshots dynamically
+function calculateWeddingSavingsFromSnapshots() {
+    const data = getData();
+    const snapshots = data.snapshots;
+
+    // Sum all wedding contributions from snapshot breakdowns
+    let totalWeddingSavings = 0;
+    snapshots.forEach(snapshot => {
+        if (snapshot.breakdown && snapshot.breakdown.wedding) {
+            totalWeddingSavings += snapshot.breakdown.wedding;
+        }
+    });
+
+    return totalWeddingSavings;
+}
+
 function renderGoals() {
     const data = getData();
     const goals = data.goals;
@@ -769,20 +797,29 @@ function renderGoals() {
     container.innerHTML = '';
 
     Object.entries(goals).forEach(([key, goal]) => {
-        const progress = (goal.currentAmount / goal.targetAmount) * 100;
-        const remaining = goal.targetAmount - goal.currentAmount;
+        // For wedding goal, dynamically calculate current amount from snapshots
+        let currentAmount = goal.currentAmount;
+        if (key === 'wedding') {
+            const fromSnapshots = calculateWeddingSavingsFromSnapshots();
+            // Use the larger of stored value or calculated from snapshots
+            currentAmount = Math.max(goal.currentAmount, fromSnapshots);
+        }
+
+        const progress = (currentAmount / goal.targetAmount) * 100;
+        const remaining = goal.targetAmount - currentAmount;
 
         // Use target date if available, otherwise calculate from monthly contribution
         let estimatedDate;
         let monthsRemaining;
         let onTrack = true;
+        let requiredMonthly = goal.monthlyContribution;
 
         if (goal.targetDate) {
             estimatedDate = new Date(goal.targetDate);
             const today = new Date();
-            monthsRemaining = Math.ceil((estimatedDate - today) / (1000 * 60 * 60 * 24 * 30));
-            const requiredMonthly = remaining / Math.max(monthsRemaining, 1);
-            onTrack = goal.monthlyContribution >= requiredMonthly;
+            monthsRemaining = Math.max(1, Math.ceil((estimatedDate - today) / (1000 * 60 * 60 * 24 * 30)));
+            requiredMonthly = Math.ceil(remaining / monthsRemaining);
+            onTrack = remaining <= 0 || goal.monthlyContribution >= requiredMonthly;
         } else {
             monthsRemaining = getMonthsUntilGoal(remaining, goal.monthlyContribution);
             estimatedDate = addMonths(new Date(), monthsRemaining);
@@ -827,9 +864,9 @@ function renderGoals() {
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4 text-sm">
-                <div><p class="text-gray-500">Saved</p><p class="text-white font-semibold">${formatCurrency(goal.currentAmount)}</p></div>
+                <div><p class="text-gray-500">Saved</p><p class="text-white font-semibold">${formatCurrency(currentAmount)}</p></div>
                 <div><p class="text-gray-500">Goal</p><p class="text-white font-semibold">${formatCurrency(goal.targetAmount)}</p></div>
-                <div><p class="text-gray-500">Remaining</p><p class="text-white font-semibold">${formatCurrency(remaining)}</p></div>
+                <div><p class="text-gray-500">Remaining</p><p class="text-white font-semibold">${formatCurrency(Math.max(0, remaining))}</p></div>
                 <div>
                     <p class="text-gray-500">${goal.targetDate ? 'Target Date' : 'Est. Complete'}</p>
                     <p class="${goal.targetDate ? (onTrack ? 'text-green-500' : 'text-amber-500') : 'text-iwt-purple'} font-semibold">
@@ -837,7 +874,15 @@ function renderGoals() {
                     </p>
                 </div>
             </div>
-            ${goal.targetDate ? `<p class="mt-3 text-xs ${onTrack ? 'text-green-500' : 'text-amber-500'}">${onTrack ? '✓ On track' : '⚠ Need to increase monthly savings'} (${monthsRemaining} months left)</p>` : ''}
+            ${goal.targetDate ? `
+                <div class="mt-3 pt-3 border-t border-gray-800">
+                    <div class="flex justify-between text-xs">
+                        <span class="${onTrack ? 'text-green-500' : 'text-amber-500'}">${onTrack ? '✓ On track' : '⚠ Behind schedule'}</span>
+                        <span class="text-gray-500">${monthsRemaining} months left</span>
+                    </div>
+                    ${!onTrack ? `<p class="text-xs text-amber-400 mt-1">Need ${formatCurrency(requiredMonthly)}/month to hit target</p>` : ''}
+                </div>
+            ` : ''}
             ${goal.notes ? `<p class="mt-2 text-xs text-gray-500 italic">"${goal.notes}"</p>` : ''}
         `;
         container.appendChild(card);
@@ -858,22 +903,34 @@ function renderWeddingTasks() {
     container.innerHTML = '';
 
     if (tasks.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-sm">No tasks yet</p>';
+        container.innerHTML = '<p class="text-gray-500 text-sm">No tasks yet. Click "Add Task" to get started!</p>';
         return;
     }
 
-    tasks.forEach((task, index) => {
+    // Sort: incomplete first, then by priority (high > medium > low)
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    const sortedTasks = [...tasks].sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
+
+    sortedTasks.forEach((task) => {
         const taskEl = document.createElement('div');
-        taskEl.className = `flex items-start gap-3 p-3 rounded-lg ${task.completed ? 'bg-green-500/10' : 'bg-gray-800/50'} transition-all`;
+        taskEl.className = `flex items-start gap-3 p-3 rounded-lg ${task.completed ? 'bg-green-500/10' : 'bg-gray-800/50'} transition-all group`;
         taskEl.innerHTML = `
             <button onclick="toggleWeddingTask(${task.id})" class="mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? 'bg-green-500 border-green-500' : 'border-gray-600 hover:border-rose-400'}">
                 ${task.completed ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}
             </button>
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
                 <p class="${task.completed ? 'text-gray-500 line-through' : 'text-white'}">${task.task}</p>
                 ${task.notes ? `<p class="text-xs text-gray-500 mt-1">${task.notes}</p>` : ''}
             </div>
-            <span class="text-xs font-medium px-2 py-1 rounded-full ${task.priority === 'high' ? 'bg-rose-500/20 text-rose-400' : task.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-700 text-gray-400'}">${task.priority}</span>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-medium px-2 py-1 rounded-full ${task.priority === 'high' ? 'bg-rose-500/20 text-rose-400' : task.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-700 text-gray-400'}">${task.priority}</span>
+                <button onclick="deleteWeddingTask(${task.id})" class="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition-all" title="Delete task">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
         `;
         container.appendChild(taskEl);
     });
@@ -886,7 +943,7 @@ function renderWeddingTasks() {
         <div class="flex justify-between items-center text-sm">
             <span class="text-gray-500">${completed} of ${tasks.length} tasks completed</span>
             <div class="w-32 h-2 bg-gray-800 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full" style="width: ${(completed / tasks.length) * 100}%"></div>
+                <div class="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all" style="width: ${tasks.length > 0 ? (completed / tasks.length) * 100 : 0}%"></div>
             </div>
         </div>
     `;
@@ -901,6 +958,61 @@ function toggleWeddingTask(taskId) {
         saveData(data);
         renderWeddingTasks();
     }
+}
+
+function toggleAddTaskForm() {
+    const form = document.getElementById('addTaskForm');
+    const btn = document.getElementById('addTaskBtn');
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) {
+        document.getElementById('newTaskInput').focus();
+    }
+}
+
+function addWeddingTask() {
+    const input = document.getElementById('newTaskInput');
+    const priority = document.getElementById('newTaskPriority');
+    const taskText = input.value.trim();
+
+    if (!taskText) {
+        input.focus();
+        return;
+    }
+
+    const data = getData();
+    if (!data.weddingTasks) {
+        data.weddingTasks = [];
+    }
+
+    // Generate new ID (max existing ID + 1)
+    const maxId = data.weddingTasks.reduce((max, t) => Math.max(max, t.id), 0);
+
+    data.weddingTasks.push({
+        id: maxId + 1,
+        task: taskText,
+        completed: false,
+        priority: priority.value,
+        dueDate: null,
+        notes: ""
+    });
+
+    saveData(data);
+
+    // Clear form and hide
+    input.value = '';
+    priority.value = 'high';
+    toggleAddTaskForm();
+
+    renderWeddingTasks();
+}
+
+function deleteWeddingTask(taskId) {
+    if (!confirm('Delete this task?')) return;
+
+    const data = getData();
+    data.weddingTasks = data.weddingTasks.filter(t => t.id !== taskId);
+    saveData(data);
+    renderWeddingTasks();
 }
 
 // ============================================
@@ -944,6 +1056,17 @@ function init() {
     document.getElementById('settingsModal').addEventListener('click', function(e) {
         if (e.target === this) closeSettingsModal();
     });
+
+    // Add task form - Enter key support
+    const newTaskInput = document.getElementById('newTaskInput');
+    if (newTaskInput) {
+        newTaskInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addWeddingTask();
+            }
+        });
+    }
 
     // Initial render
     refreshDashboard();
