@@ -278,16 +278,47 @@ const FINANCE_DATA = {
         wedding: {
             name: "Wedding Fund",
             icon: "ring",
-            targetAmount: 30000,
+            targetAmount: 24500,
             currentAmount: 8500,
-            monthlyContribution: 1000,
+            monthlyContribution: 1300,
+            targetDate: "2027-08-25",
             priority: "high",
-            notes: "Dream wedding celebration"
+            notes: "Save $24,500 by August 25th, 2027"
         }
         // Add more goals:
         // emergency: { name: "Emergency Fund", targetAmount: 25000, currentAmount: 15000, monthlyContribution: 500, priority: "high" },
         // vacation: { name: "Dream Vacation", targetAmount: 5000, currentAmount: 2000, monthlyContribution: 300, priority: "medium" },
-    }
+    },
+
+    // =========================================================
+    // WEDDING PLANNING TASKS
+    // =========================================================
+    weddingTasks: [
+        {
+            id: 1,
+            task: "Measurements for sherwani and nikkah outfit",
+            completed: false,
+            priority: "high",
+            dueDate: null,
+            notes: ""
+        },
+        {
+            id: 2,
+            task: "Plan out and book Bali Honeymoon",
+            completed: false,
+            priority: "high",
+            dueDate: null,
+            notes: ""
+        },
+        {
+            id: 3,
+            task: "Find a suitable 2 bedroom apartment in the Bay Area",
+            completed: false,
+            priority: "high",
+            dueDate: null,
+            notes: ""
+        }
+    ]
 };
 
 // Export for use in app.js

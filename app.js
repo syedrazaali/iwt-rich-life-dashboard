@@ -16,7 +16,28 @@ function loadData() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
         try {
-            return JSON.parse(stored);
+            const data = JSON.parse(stored);
+            // Merge with defaults to ensure new fields are present
+            if (!data.weddingTasks) {
+                data.weddingTasks = JSON.parse(JSON.stringify(FINANCE_DATA.weddingTasks || []));
+            }
+            // Update goals with any new fields from defaults
+            if (data.goals && FINANCE_DATA.goals) {
+                Object.keys(FINANCE_DATA.goals).forEach(key => {
+                    if (data.goals[key]) {
+                        // Merge new fields into existing goals
+                        data.goals[key] = { ...FINANCE_DATA.goals[key], ...data.goals[key] };
+                        // But use the updated target values from defaults if they changed
+                        if (FINANCE_DATA.goals[key].targetDate) {
+                            data.goals[key].targetDate = FINANCE_DATA.goals[key].targetDate;
+                        }
+                        if (FINANCE_DATA.goals[key].targetAmount !== data.goals[key].targetAmount) {
+                            data.goals[key].targetAmount = FINANCE_DATA.goals[key].targetAmount;
+                        }
+                    }
+                });
+            }
+            return data;
         } catch (e) {
             console.error('Failed to parse stored data:', e);
         }
@@ -65,6 +86,10 @@ function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
             if (data.snapshots && data.income) {
+                // Merge with default data to ensure all fields exist
+                if (!data.weddingTasks) {
+                    data.weddingTasks = FINANCE_DATA.weddingTasks || [];
+                }
                 saveData(data);
                 window._dashboardData = data;
                 location.reload();
@@ -677,10 +702,23 @@ function updateStatsCards() {
     const snapshots = data.snapshots;
     const latest = getLatestSnapshot();
     const first = snapshots[0];
+    const previous = getPreviousSnapshot();
 
     const allTimeGrowth = calculateTrend(latest.netWorth.total, first.netWorth.total);
     const monthsTracked = snapshots.length;
     const avgMonthlyGrowth = allTimeGrowth.change / Math.max(monthsTracked - 1, 1);
+
+    // Calculate investment growth
+    const investmentGrowth = latest.netWorth.investments - first.netWorth.investments;
+    const investmentGrowthPct = first.netWorth.investments > 0 ? ((investmentGrowth / first.netWorth.investments) * 100) : 0;
+
+    // Calculate savings growth
+    const savingsGrowth = latest.netWorth.savings - first.netWorth.savings;
+    const savingsGrowthPct = first.netWorth.savings > 0 ? ((savingsGrowth / first.netWorth.savings) * 100) : 0;
+
+    // Calculate month-over-month change
+    const momChange = previous ? latest.netWorth.total - previous.netWorth.total : 0;
+    const momPct = previous && previous.netWorth.total > 0 ? ((momChange / previous.netWorth.total) * 100) : 0;
 
     const statsContainer = document.getElementById('statsContainer');
     if (statsContainer) {
@@ -691,9 +729,24 @@ function updateStatsCards() {
                 <p class="text-green-500 text-sm">+${allTimeGrowth.percent.toFixed(1)}%</p>
             </div>
             <div class="bg-gray-800/50 rounded-xl p-4">
+                <p class="text-gray-500 text-xs uppercase">Monthly Change</p>
+                <p class="text-xl font-bold text-white">${formatCurrency(momChange)}</p>
+                <p class="${momChange >= 0 ? 'text-green-500' : 'text-red-500'} text-sm">${momChange >= 0 ? '+' : ''}${momPct.toFixed(1)}% MoM</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-xl p-4">
                 <p class="text-gray-500 text-xs uppercase">Avg Monthly</p>
                 <p class="text-xl font-bold text-white">${formatCurrency(avgMonthlyGrowth)}</p>
                 <p class="text-gray-400 text-sm">${monthsTracked} snapshots</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-xl p-4">
+                <p class="text-gray-500 text-xs uppercase">Investment Growth</p>
+                <p class="text-xl font-bold text-invest">${formatCurrency(investmentGrowth)}</p>
+                <p class="text-green-500 text-sm">+${investmentGrowthPct.toFixed(1)}%</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-xl p-4">
+                <p class="text-gray-500 text-xs uppercase">Savings Growth</p>
+                <p class="text-xl font-bold text-savings">${formatCurrency(savingsGrowth)}</p>
+                <p class="text-green-500 text-sm">+${savingsGrowthPct.toFixed(1)}%</p>
             </div>
             <div class="bg-gray-800/50 rounded-xl p-4">
                 <p class="text-gray-500 text-xs uppercase">Debt Paid Off</p>
@@ -718,8 +771,22 @@ function renderGoals() {
     Object.entries(goals).forEach(([key, goal]) => {
         const progress = (goal.currentAmount / goal.targetAmount) * 100;
         const remaining = goal.targetAmount - goal.currentAmount;
-        const monthsToGoal = getMonthsUntilGoal(remaining, goal.monthlyContribution);
-        const estimatedDate = addMonths(new Date(), monthsToGoal);
+
+        // Use target date if available, otherwise calculate from monthly contribution
+        let estimatedDate;
+        let monthsRemaining;
+        let onTrack = true;
+
+        if (goal.targetDate) {
+            estimatedDate = new Date(goal.targetDate);
+            const today = new Date();
+            monthsRemaining = Math.ceil((estimatedDate - today) / (1000 * 60 * 60 * 24 * 30));
+            const requiredMonthly = remaining / Math.max(monthsRemaining, 1);
+            onTrack = goal.monthlyContribution >= requiredMonthly;
+        } else {
+            monthsRemaining = getMonthsUntilGoal(remaining, goal.monthlyContribution);
+            estimatedDate = addMonths(new Date(), monthsRemaining);
+        }
 
         const iconMap = {
             ring: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>`,
@@ -763,12 +830,77 @@ function renderGoals() {
                 <div><p class="text-gray-500">Saved</p><p class="text-white font-semibold">${formatCurrency(goal.currentAmount)}</p></div>
                 <div><p class="text-gray-500">Goal</p><p class="text-white font-semibold">${formatCurrency(goal.targetAmount)}</p></div>
                 <div><p class="text-gray-500">Remaining</p><p class="text-white font-semibold">${formatCurrency(remaining)}</p></div>
-                <div><p class="text-gray-500">Est. Complete</p><p class="text-iwt-purple font-semibold">${monthsToGoal === Infinity ? 'N/A' : estimatedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p></div>
+                <div>
+                    <p class="text-gray-500">${goal.targetDate ? 'Target Date' : 'Est. Complete'}</p>
+                    <p class="${goal.targetDate ? (onTrack ? 'text-green-500' : 'text-amber-500') : 'text-iwt-purple'} font-semibold">
+                        ${monthsRemaining === Infinity ? 'N/A' : estimatedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                </div>
             </div>
-            ${goal.notes ? `<p class="mt-4 text-xs text-gray-500 italic">"${goal.notes}"</p>` : ''}
+            ${goal.targetDate ? `<p class="mt-3 text-xs ${onTrack ? 'text-green-500' : 'text-amber-500'}">${onTrack ? '✓ On track' : '⚠ Need to increase monthly savings'} (${monthsRemaining} months left)</p>` : ''}
+            ${goal.notes ? `<p class="mt-2 text-xs text-gray-500 italic">"${goal.notes}"</p>` : ''}
         `;
         container.appendChild(card);
     });
+}
+
+// ============================================
+// WEDDING TASKS RENDERING
+// ============================================
+
+function renderWeddingTasks() {
+    const data = getData();
+    const tasks = data.weddingTasks || [];
+    const container = document.getElementById('weddingTasksContainer');
+
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    if (tasks.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-sm">No tasks yet</p>';
+        return;
+    }
+
+    tasks.forEach((task, index) => {
+        const taskEl = document.createElement('div');
+        taskEl.className = `flex items-start gap-3 p-3 rounded-lg ${task.completed ? 'bg-green-500/10' : 'bg-gray-800/50'} transition-all`;
+        taskEl.innerHTML = `
+            <button onclick="toggleWeddingTask(${task.id})" class="mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? 'bg-green-500 border-green-500' : 'border-gray-600 hover:border-rose-400'}">
+                ${task.completed ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}
+            </button>
+            <div class="flex-1">
+                <p class="${task.completed ? 'text-gray-500 line-through' : 'text-white'}">${task.task}</p>
+                ${task.notes ? `<p class="text-xs text-gray-500 mt-1">${task.notes}</p>` : ''}
+            </div>
+            <span class="text-xs font-medium px-2 py-1 rounded-full ${task.priority === 'high' ? 'bg-rose-500/20 text-rose-400' : task.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-700 text-gray-400'}">${task.priority}</span>
+        `;
+        container.appendChild(taskEl);
+    });
+
+    // Add progress summary
+    const completed = tasks.filter(t => t.completed).length;
+    const progressEl = document.createElement('div');
+    progressEl.className = 'mt-4 pt-3 border-t border-gray-800';
+    progressEl.innerHTML = `
+        <div class="flex justify-between items-center text-sm">
+            <span class="text-gray-500">${completed} of ${tasks.length} tasks completed</span>
+            <div class="w-32 h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full" style="width: ${(completed / tasks.length) * 100}%"></div>
+            </div>
+        </div>
+    `;
+    container.appendChild(progressEl);
+}
+
+function toggleWeddingTask(taskId) {
+    const data = getData();
+    const task = data.weddingTasks.find(t => t.id === taskId);
+    if (task) {
+        task.completed = !task.completed;
+        saveData(data);
+        renderWeddingTasks();
+    }
 }
 
 // ============================================
@@ -784,6 +916,7 @@ function refreshDashboard() {
     renderCSPChart();
     renderNetWorthChart();
     renderGoals();
+    renderWeddingTasks();
 }
 
 function updateLastUpdated() {

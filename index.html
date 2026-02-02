@@ -210,7 +210,7 @@
         <!-- Stats Section -->
         <section class="mt-8">
             <h3 class="text-xl font-semibold mb-4">Growth Stats</h3>
-            <div id="statsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div id="statsContainer" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <!-- Stats will be inserted by JS -->
             </div>
         </section>
@@ -220,6 +220,21 @@
             <h3 class="text-xl font-semibold mb-4">Rich Life Goals</h3>
             <div id="goalsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Goal cards will be inserted here -->
+            </div>
+        </section>
+
+        <!-- Wedding Planning Tasks -->
+        <section class="mt-8">
+            <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+                <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    Wedding Planning Tasks
+                </h3>
+                <div id="weddingTasksContainer" class="space-y-3">
+                    <!-- Tasks will be inserted by JS -->
+                </div>
             </div>
         </section>
 
@@ -234,26 +249,26 @@
                 </h3>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div class="text-center p-4 bg-gray-800/50 rounded-xl">
-                        <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-fixed/20 flex items-center justify-center">
-                            <span class="text-fixed font-bold">50-60%</span>
+                        <div class="w-auto min-w-[3.5rem] h-auto min-h-[3.5rem] px-3 py-2 mx-auto mb-2 rounded-full bg-fixed/20 flex items-center justify-center">
+                            <span class="text-fixed font-bold text-sm">50-60%</span>
                         </div>
                         <p class="text-gray-400 text-sm">Fixed Costs</p>
                     </div>
                     <div class="text-center p-4 bg-gray-800/50 rounded-xl">
-                        <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-invest/20 flex items-center justify-center">
-                            <span class="text-invest font-bold">10%</span>
+                        <div class="w-auto min-w-[3.5rem] h-auto min-h-[3.5rem] px-3 py-2 mx-auto mb-2 rounded-full bg-invest/20 flex items-center justify-center">
+                            <span class="text-invest font-bold text-sm">10%+</span>
                         </div>
                         <p class="text-gray-400 text-sm">Investments</p>
                     </div>
                     <div class="text-center p-4 bg-gray-800/50 rounded-xl">
-                        <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-savings/20 flex items-center justify-center">
-                            <span class="text-savings font-bold">5-10%</span>
+                        <div class="w-auto min-w-[3.5rem] h-auto min-h-[3.5rem] px-3 py-2 mx-auto mb-2 rounded-full bg-savings/20 flex items-center justify-center">
+                            <span class="text-savings font-bold text-sm">5-10%</span>
                         </div>
                         <p class="text-gray-400 text-sm">Savings Goals</p>
                     </div>
                     <div class="text-center p-4 bg-gray-800/50 rounded-xl">
-                        <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-guilt-free/20 flex items-center justify-center">
-                            <span class="text-guilt-free font-bold">20-35%</span>
+                        <div class="w-auto min-w-[3.5rem] h-auto min-h-[3.5rem] px-3 py-2 mx-auto mb-2 rounded-full bg-guilt-free/20 flex items-center justify-center">
+                            <span class="text-guilt-free font-bold text-sm">20-35%</span>
                         </div>
                         <p class="text-gray-400 text-sm">Guilt-Free</p>
                     </div>
